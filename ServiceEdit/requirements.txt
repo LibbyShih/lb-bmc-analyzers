@@ -1,0 +1,3 @@
+# ServiceEdit — GUI 使用 tkinter（Python 標準庫）
+# CLI 模式需要 rich
+rich>=13.0
