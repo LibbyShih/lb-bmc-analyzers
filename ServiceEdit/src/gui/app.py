@@ -27,8 +27,8 @@ class ServiceEditApp(tk.Tk):
     def __init__(self, initial_path: Path | None = None):
         super().__init__()
         self.title("ServiceEdit")
-        self.minsize(980, 680)
-        self.geometry("1120x760")
+        self.minsize(880, 580)
+        self.geometry("1000x660")
 
         self._current_path: Path | None = None
         self._vars: dict[str, dict[str, tk.StringVar]] = {}
@@ -42,12 +42,13 @@ class ServiceEditApp(tk.Tk):
         self._suppress_dirty = False
         self._last_template = "空白"
 
-        # 統一字級（11pt）；標題略大
+        # 統一字級（10pt）；標題略大
         _f = "Microsoft JhengHei UI"
-        _s = 11
+        _s = 10
         self._font_ui = (_f, _s)
-        self._font_title = (_f, _s + 3, "bold")
+        self._font_title = (_f, _s + 2, "bold")
         self._font_mono = ("Consolas", _s)
+        self._help_min = 130
 
         self._setup_style()
         self._init_vars()
@@ -64,6 +65,7 @@ class ServiceEditApp(tk.Tk):
         self.bind_all("<Control-o>", lambda _e: self._open_file())
         self.bind_all("<Control-s>", lambda _e: self._save_file())
         self.after(50, self._refresh_preview)
+        self.after(120, self._init_paned_sashes)
 
     def _setup_style(self):
         style = ttk.Style(self)
@@ -112,23 +114,42 @@ class ServiceEditApp(tk.Tk):
             font=(self._font_ui[0], self._font_ui[1], "bold"),
         )
         style.configure("TNotebook", background=c["bg"], borderwidth=0, tabmargins=(4, 4, 0, 0))
-        style.configure("TNotebook.Tab", padding=(18, 8), font=self._font_ui)
+        style.configure("TNotebook.Tab", padding=(10, 6), font=self._font_ui)
         style.map(
             "TNotebook.Tab",
             background=[("selected", c["surface"]), ("!selected", c["bg"])],
             foreground=[("selected", c["accent"]), ("!selected", c["text"])],
         )
-        style.configure("TButton", padding=(14, 7), font=self._font_ui)
+        style.configure("TButton", padding=(8, 4), font=self._font_ui)
         style.configure("Clear.TButton", padding=(2, 2), width=2, font=self._font_ui)
-        style.configure("TEntry", padding=6, fieldbackground=c["surface"], font=self._font_ui)
-        style.configure("TCombobox", padding=6, fieldbackground=c["surface"], font=self._font_ui)
+        style.configure("TEntry", padding=(4, 3), fieldbackground=c["surface"], font=self._font_ui)
+        style.configure("TCombobox", padding=(4, 3), fieldbackground=c["surface"], font=self._font_ui)
         style.configure("Header.TCheckbutton", background=c["header_bg"], foreground=c["text"], font=self._font_ui)
         style.configure("TCheckbutton", background=c["surface"], font=self._font_ui)
         style.configure("TSeparator", background=c["border"])
-        style.configure("Status.TLabel", background=c["status_bg"], foreground=c["text"], padding=(12, 7), font=self._font_ui)
+        style.configure("Status.TLabel", background=c["status_bg"], foreground=c["text"], padding=(10, 5), font=self._font_ui)
+
+    def _configure_left_panes(self):
+        try:
+            self._left_paned.paneconfig(self._help_host, minsize=self._help_min)
+            self._left_paned.paneconfig(self._form_host, minsize=200)
+        except tk.TclError:
+            pass
+
+    def _init_paned_sashes(self):
+        try:
+            self.update_idletasks()
+            w = max(self._main_paned.winfo_width(), 400)
+            self._main_paned.sashpos(0, int(w * 0.52))
+
+            h = max(self._left_paned.winfo_height(), self._help_min + 200)
+            sash = max(200, h - self._help_min)
+            self._left_paned.sashpos(0, sash)
+        except tk.TclError:
+            pass
 
     def _build_header(self):
-        header = ttk.Frame(self, style="Header.TFrame", padding=(18, 12))
+        header = ttk.Frame(self, style="Header.TFrame", padding=(10, 6))
         header.pack(fill=tk.X)
 
         title_box = ttk.Frame(header, style="Header.TFrame")
@@ -169,18 +190,31 @@ class ServiceEditApp(tk.Tk):
 
     def _build_body(self):
         paned = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
+        paned.pack(fill=tk.BOTH, expand=True, padx=8, pady=6)
+        self._main_paned = paned
 
         left = ttk.Frame(paned, style="Surface.TFrame", padding=2)
         right = ttk.Frame(paned, style="Surface.TFrame", padding=2)
         paned.add(left, weight=3)
         paned.add(right, weight=2)
 
-        form_card = ttk.LabelFrame(left, text="  欄位設定  ", padding=(4, 6))
+        left_paned = ttk.Panedwindow(left, orient=tk.VERTICAL)
+        left_paned.pack(fill=tk.BOTH, expand=True)
+        self._left_paned = left_paned
+
+        form_host = ttk.Frame(left_paned, style="Surface.TFrame")
+        help_host = ttk.Frame(left_paned, style="Surface.TFrame")
+        self._form_host = form_host
+        self._help_host = help_host
+        left_paned.add(form_host, weight=5)
+        left_paned.add(help_host, weight=2)
+        self.after_idle(lambda: self._configure_left_panes())
+
+        form_card = ttk.LabelFrame(form_host, text=" 欄位設定 ", padding=(4, 4))
         form_card.pack(fill=tk.BOTH, expand=True)
 
         self._notebook = ttk.Notebook(form_card)
-        self._notebook.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        self._notebook.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
         self._tab_frames: dict[str, ttk.Frame] = {}
         for section in SECTIONS_ORDER:
@@ -194,7 +228,7 @@ class ServiceEditApp(tk.Tk):
                 bg=self._c["surface"],
             )
             scrollbar = ttk.Scrollbar(outer, orient=tk.VERTICAL, command=canvas.yview)
-            inner = ttk.Frame(canvas, style="Surface.TFrame", padding=(8, 6))
+            inner = ttk.Frame(canvas, style="Surface.TFrame", padding=(8, 4))
             window_id = canvas.create_window((0, 0), window=inner, anchor="nw")
 
             def _on_inner_configure(_event, c=canvas):
@@ -214,19 +248,18 @@ class ServiceEditApp(tk.Tk):
             self._bind_canvas_mousewheel(canvas, inner)
             self._section_canvas[section] = canvas
 
-        help_frame = ttk.LabelFrame(left, text="  欄位說明  ", padding=(8, 6))
-        help_frame.pack(fill=tk.X, pady=(10, 0))
+        help_frame = ttk.LabelFrame(help_host, text=" 欄位說明 ", padding=(4, 4))
+        help_frame.pack(fill=tk.BOTH, expand=True)
 
         self._help_text = tk.Text(
             help_frame,
-            height=10,
             wrap=tk.WORD,
             font=self._font_ui,
             relief=tk.FLAT,
             bg=self._c["help_bg"],
             fg=self._c["text"],
-            padx=10,
-            pady=8,
+            padx=6,
+            pady=4,
             borderwidth=1,
             highlightthickness=1,
             highlightbackground=self._c["border"],
@@ -246,8 +279,10 @@ class ServiceEditApp(tk.Tk):
         self._set_help_text(DEFAULT_HELP)
         self._bind_text_mousewheel(self._help_text)
 
-        preview_frame = ttk.LabelFrame(right, text="  即時預覽  ", padding=(6, 6))
+        preview_frame = ttk.LabelFrame(right, text=" 即時預覽 ", padding=(4, 4))
         preview_frame.pack(fill=tk.BOTH, expand=True)
+        preview_frame.columnconfigure(0, weight=1)
+        preview_frame.rowconfigure(0, weight=1)
 
         self._preview = tk.Text(
             preview_frame,
@@ -256,15 +291,17 @@ class ServiceEditApp(tk.Tk):
             bg=self._c["preview_bg"],
             fg=self._c["preview_fg"],
             relief=tk.FLAT,
-            padx=10,
-            pady=8,
+            padx=8,
+            pady=6,
             borderwidth=0,
             insertbackground=self._c["preview_fg"],
         )
-        yscroll = ttk.Scrollbar(preview_frame, command=self._preview.yview)
-        self._preview.configure(yscrollcommand=yscroll.set)
-        self._preview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        yscroll.pack(side=tk.RIGHT, fill=tk.Y)
+        yscroll = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=self._preview.yview)
+        xscroll = ttk.Scrollbar(preview_frame, orient=tk.HORIZONTAL, command=self._preview.xview)
+        self._preview.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
+        self._preview.grid(row=0, column=0, sticky="nsew")
+        yscroll.grid(row=0, column=1, sticky="ns")
+        xscroll.grid(row=1, column=0, sticky="ew")
         self._preview.tag_configure(
             "section",
             foreground=self._c["preview_section"],
@@ -272,7 +309,7 @@ class ServiceEditApp(tk.Tk):
         )
         self._preview.tag_configure("key", foreground=self._c["preview_key"])
         self._preview.configure(state=tk.DISABLED)
-        self._bind_text_mousewheel(self._preview)
+        self._bind_preview_mousewheel(self._preview)
 
     def _wheel_scroll_canvas(self, canvas: tk.Canvas, event):
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
@@ -297,6 +334,18 @@ class ServiceEditApp(tk.Tk):
 
         text.bind("<MouseWheel>", _on_wheel)
 
+    def _bind_preview_mousewheel(self, text: tk.Text):
+        def _on_wheel(event):
+            delta = int(-1 * (event.delta / 120))
+            if event.state & 0x1:
+                text.xview_scroll(delta, "units")
+            else:
+                text.yview_scroll(delta, "units")
+            return "break"
+
+        text.bind("<MouseWheel>", _on_wheel)
+        text.bind("<Shift-MouseWheel>", _on_wheel)
+
     def _build_section_form(self, section: str, parent: ttk.Frame):
         self._tier_frames[section] = {}
 
@@ -309,15 +358,15 @@ class ServiceEditApp(tk.Tk):
             if not items:
                 continue
 
-            lf = ttk.LabelFrame(parent, text=f"  {TIER_LABELS[tier]}  ", padding=(8, 6))
-            lf.pack(fill=tk.X, pady=(0, 8))
+            lf = ttk.LabelFrame(parent, text=f" {TIER_LABELS[tier]} ", padding=(6, 4))
+            lf.pack(fill=tk.X, pady=(0, 6))
             lf.columnconfigure(1, weight=1)
             self._tier_frames[section][tier] = lf
 
             for row_idx, (key, meta) in enumerate(items):
                 self._add_field_row(lf, section, key, meta, row_idx)
 
-        extra_box = ttk.LabelFrame(parent, text="  其他欄位  ", padding=(8, 6))
+        extra_box = ttk.LabelFrame(parent, text=" 其他欄位 ", padding=(6, 4))
         extra_box.pack(fill=tk.X, pady=(0, 4))
         extra_box.pack_forget()
         extra_box.columnconfigure(1, weight=1)
@@ -334,7 +383,7 @@ class ServiceEditApp(tk.Tk):
         required = meta.get("required", False)
         stripe = self._c["surface"] if row % 2 == 0 else self._c["stripe"]
 
-        block = tk.Frame(parent, bg=stripe, padx=6, pady=6)
+        block = tk.Frame(parent, bg=stripe, padx=4, pady=4)
         block.grid(row=row, column=0, sticky=tk.EW)
         parent.columnconfigure(0, weight=1)
 
@@ -346,7 +395,7 @@ class ServiceEditApp(tk.Tk):
             bg=stripe,
             fg=fg,
             font=self._font_ui,
-            width=22,
+            width=18,
             anchor=tk.W,
         ).grid(row=0, column=0, sticky=tk.W, padx=(4, 0))
 
@@ -519,7 +568,7 @@ class ServiceEditApp(tk.Tk):
             bg=stripe,
             fg=self._c["text"],
             font=self._font_ui,
-            width=22,
+            width=18,
             anchor=tk.W,
         ).grid(row=0, column=0, sticky=tk.W, padx=(4, 0))
         entry = ttk.Entry(row_frame, textvariable=var)
